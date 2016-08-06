@@ -27,6 +27,7 @@ local function startSmart()
             tmr.alarm(2,5000,1,function()
                 if(wifi.sta.status()==5) then
                     i = 0
+                    file.open("t.lua","w"); file.write([[token=''; ]]); file.close();
                     -- print(wifi.sta.getip()) , now App know the IP, switch to stationap mode, we can not do it early because do not know if the password is correct
                     wifi.setmode(wifi.STATIONAP)
                     -- dofile("i.lua") -- now App can update url and token if needed
