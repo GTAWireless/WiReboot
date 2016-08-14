@@ -5,19 +5,19 @@ local gpio12 = 6
 gpio.mode(gpio12,gpio.INT)
 
 urlToken = 'https://wirebootapp.appspot.com/nt'
-keyToken = 'xxxxxxxxx'
+keyToken = 'xxxxxxxx'
 i = 0
 
-started = false
+local started = false
 
 local function startSmart()
+    wifi.setmode(wifi.STATION)
     print("SmartConfig")
     LEDBlinkInterval = 1500
     tmr.stop(1)
     tmr.alarm(1,LEDBlinkInterval,1,function() gpio.write(1, gpio.HIGH) tmr.delay(LEDOnTime) gpio.write(1, gpio.LOW) end)
     -- tmr.alarm(1,LEDBlinkInterval,1,function() print("S") end)
     
-    wifi.setmode(wifi.STATION)
     wifi.startsmart(0,
         function(ssid, password)
             print(string.format("Success. SSID:%s", ssid))
@@ -30,7 +30,6 @@ local function startSmart()
                     file.open("t.lua","w"); file.write([[token=''; ]]); file.close();
                     -- print(wifi.sta.getip()) , now App know the IP, switch to stationap mode, we can not do it early because do not know if the password is correct
                     wifi.setmode(wifi.STATIONAP)
-                    -- dofile("i.lua") -- now App can update url and token if needed
                     if started==false then
                         dofile("i.lua")
                         started = true
@@ -69,6 +68,7 @@ local function startSmart()
 end
 
 local function startWWW()
+    wifi.stopsmart()
     print("WebConfig")
     LEDBlinkInterval = 500
     tmr.stop(1)
@@ -88,7 +88,10 @@ local function startWWW()
     tmr.alarm(5, 1000, 0, function() wifi.sta.getap(listap) end)
     tmr.alarm(0, 2000, 0, function()
       -- dofile("i.lc")
-      dofile("i.lua")
+      if started==false then
+        dofile("i.lua")
+        started = true
+      end
     end)
 end
 

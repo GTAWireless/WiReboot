@@ -124,7 +124,10 @@ else
             else
                 -- test https (and post sensors data if module is connected
                 j = j + 1
-                testNet()
+
+                if token==nil then
+                    testNet()
+                end
                 
                 -- if j>retryTimesHTTPS and DuringReboot==false then
                 if j>retryTimesHTTPS then
