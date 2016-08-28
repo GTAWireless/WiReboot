@@ -9,6 +9,8 @@ keyToken = 'xxxxxxxx'
 i = 0
 
 local started = false
+aplist = nil
+local mac = wifi.sta.getmac()
 
 local function startSmart()
     wifi.setmode(wifi.STATION)
@@ -26,15 +28,15 @@ local function startSmart()
             -- tmr.alarm(2,testWiFiInterval,1,function()
             tmr.alarm(2,5000,1,function()
                 if(wifi.sta.status()==5) then
+                    tmr.stop(1)
                     i = 0
                     file.open("t.lua","w"); file.write([[token=''; ]]); file.close();
                     -- print(wifi.sta.getip()) , now App know the IP, switch to stationap mode, we can not do it early because do not know if the password is correct
-                    wifi.setmode(wifi.STATIONAP)
+                    -- setSSID() -- wifi.setmode(wifi.STATIONAP)    -- We do not need to change to stationap mode? App know the IP.
                     if started==false then
                         dofile("i.lua")
                         started = true
                     end
-                    local mac = wifi.sta.getmac()
                     -- local sPostData = string.format([[mac=%s&k=%s&c=%s]],mac,keyToken,"json")
                     -- local sPostData = string.format([[mac=%s&k=%s&c=%s]],mac,keyToken,"node")
                     local sPostData = string.format([[mac=%s&k=%s]],mac,keyToken)
@@ -67,6 +69,14 @@ local function startSmart()
     )
 end
 
+local function setSSID()
+    wifi.setmode(wifi.STATIONAP)
+    cfg={}
+    -- cfg.ssid = "WiReboot-"..node.chipid()
+    cfg.ssid = "WiReboot-"..mac
+    wifi.ap.config(cfg)
+end
+
 local function startWWW()
     wifi.stopsmart()
     print("WebConfig")
@@ -75,15 +85,11 @@ local function startWWW()
     tmr.alarm(1,LEDBlinkInterval,1,function() gpio.write(1, gpio.HIGH) tmr.delay(LEDOnTime) gpio.write(1, gpio.LOW) end)
     -- tmr.alarm(1,LEDBlinkInterval,1,function() print("W") end)
 
-    wifi.setmode(wifi.STATIONAP)
-    aplist = nil
+    -- aplist = nil
     function listap(t)
       aplist = t
     end
-    
-    local cfg={}
-    cfg.ssid = "WiReboot-"..node.chipid()
-    wifi.ap.config(cfg)
+    setSSID()
     
     tmr.alarm(5, 1000, 0, function() wifi.sta.getap(listap) end)
     tmr.alarm(0, 2000, 0, function()

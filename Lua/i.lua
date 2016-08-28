@@ -22,7 +22,7 @@ srv:listen(80,function(conn)
 
      --if pos==nil and fstart==nil then
      if pos==nil then
-          print("ERR:"..payload)
+          -- print("ERR:"..payload) --should not print, just ignore
           return
      end
      --print(string.sub(payload,pos+4))

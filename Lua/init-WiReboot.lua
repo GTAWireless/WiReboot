@@ -1,5 +1,9 @@
+i=0
+local j=0
+local k=0
+local t=0
 
-local c = require("config")
+local c=require("config")
 
 if file.open("t.lua", "r") then
     file.close()
@@ -19,13 +23,16 @@ local v = adc.read(0)
 -- majorVer, minorVer, devVer, chipid, flashid, flashsize, flashmode, flashspeed = node.info()
 -- print(majorVer.."."..minorVer.."."..devVer)
 
-gpio.mode(6, gpio.INPUT)
+gpio.mode(6,gpio.INT)
+local function touchcb(level)
+    t=t+1
+    if (t==10 and wifi.sta.status()==5) or (t==6 and wifi.sta.status()~=5) then
+        file.remove("t.lua")
+        node.restart()
+    end
+end
+gpio.trig(6, "both", touchcb)
 
-i = 0
-local j = 0
-local c = 0
-
--- local DuringReboot = false
 function PowerCycle()
     print("Power Off")
     tmr.stop(1)
@@ -45,8 +52,8 @@ function testNet()
             print(code)
             if (code > 0) then
               -- print(code, data)
-              j = 0
-              c = c + 1
+              k=k+1
+              j=0
               connected=true
             end
           end)        
@@ -57,29 +64,28 @@ function postData() -- ToDO: when to sleep if Google is blocked?
     local ip = wifi.sta.getip()
     local m = node.heap()
     local mac = wifi.sta.getmac()
- 
-    local sPostData = string.format([[a=run&ip=%s&m=%s&mac=%s&at=%s&v=%s]],ip,m,mac,token,v)
+    local sPostData
+
+    sPostData = string.format([[a=run&ip=%s&m=%s&mac=%s&at=%s&v=%s]],ip,m,mac,token,v)
     print(sPostData)
     http.post(url, nil, sPostData, function(code, res)
         print(code)
-        if (code <0) then return end -- if code==-1, should sleep?
+        if (code<0) then return end -- if code==-1, sleep?
         if (code ==200) then
           j = 0
           pos=string.find(res, "node:")
           strNode=string.sub(res,pos+5)
           print(strNode)
-          -- tmr.alarm(0,500,0,function() pcall(loadstring(strNode)) end)
           pcall(loadstring(strNode))
         else
           node.dsleep(defaultSleepTime)
-          -- return
         end
     end)
 end
 
 gpio.mode(4, gpio.INPUT)    -- gpio2 = 4
 
-gpio.mode(1, gpio.OUTPUT, gpio.PULLUP)    -- gpio5 = 1 , connect to LED
+gpio.mode(1, gpio.OUTPUT, gpio.PULLUP)    -- gpio5 = 1 , RED LED
 gpio.write(1, gpio.LOW)
 
 gpio.mode(3, gpio.OUTPUT, gpio.PULLDOWN)
@@ -102,44 +108,41 @@ else
     -- if reset_reason!=4 then
         print("wait...")
         tmr.alarm(0,waitFirstPowerOn,0,function() node.restart() end)
+        -- if can not find Wi-Fi ssid, restart Wi-Fi setup after x minutes
+--        tmr.alarm(1,600000,0,function() 
+--            tmr.stop(0)
+--            dofile("dualSetup.lua")
+--        end)
     else
-        print("test WiFi:")  -- check internet, then go to sleep
+        print("test WiFi:")  -- check internet, then sleep
     
         tmr.alarm(1,testWiFiInterval,1,function()
             if(wifi.sta.status()~=5) then
                 i = i + 1
                 print("Offline") -- trying to connect to router
                 --if token==nil then  --move token check to top
-                -- if gpio.read(6)==0 and i>3 then  -- use touch to re-enter setup is not reliable
-                if v<280 and i>3 and gpio.read(6)==0 then  -- User want to run setup again, 5V = 263
-                    tmr.stop(1)
-                    dofile("dualSetup.lua")
-                end
-                -- if i>retryTimesLocal and DuringReboot==false then
+--                if v<280 and i>3 and gpio.read(6)==0 then  -- User want to run setup again, 5V = 263
+--                    tmr.stop(1)
+--                    dofile("dualSetup.lua")
+--                end
                 if i>retryTimesLocal then
-                    --DuringReboot = true
                     PowerCycle()
-                    --i = 0
                 end
             else
                 -- test https (and post sensors data if module is connected
                 j = j + 1
 
-                if token==nil then
+                if token==nil then  -- if token is not nil, it means able to access google server
                     testNet()
                 end
                 
-                -- if j>retryTimesHTTPS and DuringReboot==false then
                 if j>retryTimesHTTPS then
-                    --DuringReboot = true
                     PowerCycle()
-                    --j = 0
                 else
                     postData()
                 end
-                print(c)
-                if c>1 then node.dsleep(defaultSleepTime) end
-                -- print(j)
+--                print(k)
+                if k>1 then node.dsleep(defaultSleepTime) end
             end
             collectgarbage()
         end)
