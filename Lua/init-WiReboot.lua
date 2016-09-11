@@ -19,9 +19,14 @@ end
 
 URLs = {'live.com', 'amazon.com', 'yahoo.com'} --'httpbin.org/ip'
 
+majorVer, minorVer, devVer=node.info()
+fv=majorVer.."."..minorVer.."."..devVer
+--print(fv)
+
 local v = adc.read(0)
--- majorVer, minorVer, devVer, chipid, flashid, flashsize, flashmode, flashspeed = node.info()
--- print(majorVer.."."..minorVer.."."..devVer)
+local sm=require("sm")
+local sd=sm.sData()
+sm=nil
 
 gpio.mode(6,gpio.INT)
 local function touchcb(level)
@@ -66,7 +71,7 @@ function postData() -- ToDO: when to sleep if Google is blocked?
     local mac = wifi.sta.getmac()
     local sPostData
 
-    sPostData = string.format([[a=run&ip=%s&m=%s&mac=%s&at=%s&v=%s]],ip,m,mac,token,v)
+    sPostData = string.format([[a=wr&ip=%s&m=%s&mac=%s&at=%s&v=%s&fv=%s]],ip,m,mac,token,v,fv)..sd
     print(sPostData)
     http.post(url, nil, sPostData, function(code, res)
         print(code)
