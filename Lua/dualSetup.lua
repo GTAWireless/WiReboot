@@ -1,5 +1,5 @@
 local LEDBlinkInterval = 1500    -- 500ms, how fast LED blinks in WiFi setup
-local LEDOnTime = 1500
+local LEDOnTime = 50000
 
 local gpio12 = 6
 gpio.mode(gpio12,gpio.INT)
@@ -7,6 +7,7 @@ gpio.mode(gpio12,gpio.INT)
 urlToken = 'https://wirebootapp.appspot.com/nt'
 keyToken = 'xxxxxxxx'
 i = 0
+local tc=0
 
 local started = false
 aplist = nil
@@ -102,6 +103,8 @@ local function startWWW()
 end
 
 local function touchcb(level)
+    tc=tc+1
+    if tc==4 then uart.alt(0) end
     if level==1 then
         startSmart()
     else

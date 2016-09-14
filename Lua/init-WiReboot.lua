@@ -5,8 +5,7 @@ local t=0
 
 local c=require("config")
 
-if file.open("t.lua", "r") then
-    file.close()
+if file.exists("t.lua") then
     local t = require("t")
 else
     if rboot.rom()==1 then  -- after firmware update, read token, config from RTC and save
@@ -17,26 +16,32 @@ else
     end
 end
 
-URLs = {'live.com', 'amazon.com', 'yahoo.com'} --'httpbin.org/ip'
+URLs={'live.com', 'amazon.com', 'yahoo.com'} --'httpbin.org/ip'
 
 majorVer, minorVer, devVer=node.info()
-fv=majorVer.."."..minorVer.."."..devVer
+local fv=majorVer.."."..minorVer.."."..devVer
 --print(fv)
+majorVer,minorVer,devVer=nil,nil,nil
 
-local v = adc.read(0)
+local v=adc.read(0)
 local sm=require("sm")
 local sd=sm.sData()
+package.loaded["sm"]=nil
 sm=nil
+if sd==nil then sd='' end
 
 gpio.mode(6,gpio.INT)
 local function touchcb(level)
     t=t+1
-    if (t==10 and wifi.sta.status()==5) or (t==6 and wifi.sta.status()~=5) then
-        file.remove("t.lua")
-        node.restart()
+    if t==4 then uart.alt(0) end
+    if token~=nil then
+        if (t==10 and wifi.sta.status()==5) or (t==6 and wifi.sta.status()~=5) then
+            file.remove("t.lua")
+            node.restart()
+        end
     end
 end
-gpio.trig(6, "both", touchcb)
+gpio.trig(6,"both",touchcb)
 
 function PowerCycle()
     print("Power Off")
@@ -88,68 +93,49 @@ function postData() -- ToDO: when to sleep if Google is blocked?
     end)
 end
 
-gpio.mode(4, gpio.INPUT)    -- gpio2 = 4
-
 gpio.mode(1, gpio.OUTPUT, gpio.PULLUP)    -- gpio5 = 1 , RED LED
 gpio.write(1, gpio.LOW)
-
-gpio.mode(3, gpio.OUTPUT, gpio.PULLDOWN)
-gpio.write(3, gpio.LOW)
--- gpio0=3, gpio2=4
-
-tmr.delay(10)
 
 if rboot.rom()==1 and token==nil then   -- token was in RTC mem before OTA
     dofile("ota-token.lua")
 end
 
-if gpio.read(4)==0 then     -- gpio0 connect to gpio2, user want to run WiFi setup again
-    print("WiFi setup")
-    dofile("dualSetup.lua") -- dofile("setup.lua")
+-- check boot reason, if power on, sleep and wait modem/router few minutes before test WiFi
+boot_code, reset_reason = node.bootreason()
+if reset_reason==6 or reset_reason==0 then
+    print("wait...")
+    tmr.alarm(0,waitFirstPowerOn,0,function() node.restart() end)
+    -- if can not find Wi-Fi ssid, restart Wi-Fi setup after 10 minutes
+--    tmr.alarm(1,600000,0,function() 
+--        tmr.stop(0)
+--        dofile("dualSetup.lua")
+--    end)
 else
-    -- check boot reason, print(node.bootreason()), if power on first time, sleep and wait a few minutes to test WiFi connection, prevent over-heating
-    boot_code, reset_reason = node.bootreason()
-    if reset_reason==6 or reset_reason==0 then
-    -- if reset_reason!=4 then
-        print("wait...")
-        tmr.alarm(0,waitFirstPowerOn,0,function() node.restart() end)
-        -- if can not find Wi-Fi ssid, restart Wi-Fi setup after x minutes
---        tmr.alarm(1,600000,0,function() 
---            tmr.stop(0)
---            dofile("dualSetup.lua")
---        end)
-    else
-        print("test WiFi:")  -- check internet, then sleep
-    
-        tmr.alarm(1,testWiFiInterval,1,function()
-            if(wifi.sta.status()~=5) then
-                i = i + 1
-                print("Offline") -- trying to connect to router
-                --if token==nil then  --move token check to top
---                if v<280 and i>3 and gpio.read(6)==0 then  -- User want to run setup again, 5V = 263
---                    tmr.stop(1)
---                    dofile("dualSetup.lua")
---                end
-                if i>retryTimesLocal then
-                    PowerCycle()
-                end
-            else
-                -- test https (and post sensors data if module is connected
-                j = j + 1
+    print("test WiFi:")  -- check internet, then sleep
 
-                if token==nil then  -- if token is not nil, it means able to access google server
-                    testNet()
-                end
-                
-                if j>retryTimesHTTPS then
-                    PowerCycle()
-                else
-                    postData()
-                end
---                print(k)
-                if k>1 then node.dsleep(defaultSleepTime) end
+    tmr.alarm(1,testWiFiInterval,1,function()
+        if(wifi.sta.status()~=5) then
+            i = i + 1
+            print("Offline") -- trying to connect to router
+            if i>retryTimesLocal then
+                PowerCycle()
             end
-            collectgarbage()
-        end)
-    end
+        else
+            -- test https (and post sensors data if module is connected
+            j = j + 1
+
+            if token==nil then  -- if token is not nil, it means able to access google server
+                testNet()
+            end
+            
+            if j>retryTimesHTTPS then
+                PowerCycle()
+            else
+                postData()
+            end
+--                print(k)
+            if k>1 then node.dsleep(defaultSleepTime) end
+        end
+        collectgarbage()
+    end)
 end
