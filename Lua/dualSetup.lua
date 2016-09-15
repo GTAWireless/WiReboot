@@ -4,7 +4,7 @@ local LEDOnTime = 50000
 local gpio12 = 6
 gpio.mode(gpio12,gpio.INT)
 
-urlToken = 'https://wirebootapp.appspot.com/nt'
+urlToken = url..'/nt'
 keyToken = 'xxxxxxxx'
 i = 0
 local tc=0

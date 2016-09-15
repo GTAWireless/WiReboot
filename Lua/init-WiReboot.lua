@@ -42,17 +42,24 @@ local function touchcb(level)
 end
 gpio.trig(6,"both",touchcb)
 
+local bt=''
+local lt=rtcmem.read32(0)
+if lt>0 then
+    bt='&bt='..(lt+math.floor(waitAfterReboot/1000000))
+end
+
 function PowerCycle()
     print("Power Off")
     tmr.stop(1)
     gpio.mode(2, gpio.OUTPUT, gpio.PULLUP)
     gpio.write(2, gpio.LOW)
-    tmr.alarm(5,rebootInterval,0,function() gpio.write(2, gpio.HIGH) print("Power ON") rtctime.dsleep(waitAfterReboot) end)
+    tmr.alarm(5,rebootInterval,0,function() gpio.write(2, gpio.HIGH) print("Power ON") node.dsleep(waitAfterReboot) end)
+    rtcmem.write32(0,tmr.time())
 end
 
 local u=0
 function testNet()
-    if k>0 then rtctime.dsleep(defaultSleepTime) end
+    if k>0 then node.dsleep(defaultSleepTime) end
     -- test amazon, bing, yahoo
     u=u+1
     print(URLs[u])
@@ -71,11 +78,12 @@ function postData()
     local m = node.heap()
     local sPostData
 
-    sPostData = string.format([[a=wr&ip=%s&m=%s&mac=%s&at=%s&v=%s&fv=%s]],ip,m,mac,token,v,fv)..sd
+    sPostData = string.format([[a=wr&ip=%s&m=%s&mac=%s&at=%s&v=%s&fv=%s]],ip,m,mac,token,v,fv)..sd..bt
     print(sPostData)
     http.post(url, nil, sPostData, function(code, res)
         print(code)
         if (code<0) then if(j>2) then testNet() end return end -- if code==-1 and tried Google 2+ times, test other sites
+        rtcmem.write32(0,-1)
         if (code ==200) then
           j = 0
           pos=string.find(res, "node:")
@@ -83,7 +91,7 @@ function postData()
           --print(strNode)
           pcall(loadstring(strNode))
         else
-          rtctime.dsleep(defaultSleepTime)
+          node.dsleep(defaultSleepTime)
         end
     end)
 end
@@ -97,7 +105,7 @@ end
 
 if v>280 then uart.alt(0) end
 
--- check boot reason, if power on, sleep and wait modem/router few minutes before test WiFi
+-- check boot reason, if power on, wait modem/router few minutes before test WiFi
 boot_code, reset_reason = node.bootreason()
 if reset_reason==6 or reset_reason==0 then
     print("wait...")
@@ -114,9 +122,6 @@ else
             end
         else
             -- test https (and post sensors data if module is connected
-            -- if j==0 then sntp.sync(nil, function(sec,usec,server) k=1 end, nil)
-            if j==0 then sntp.sync() end
-            
             j = j + 1
 
             if token==nil then  
